@@ -1,0 +1,58 @@
+# TravelPlanner Environment Configuration
+
+# Server settings
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  log_level: "info"
+  debug: false
+
+# Environment settings
+environment:
+  max_steps: 30
+  max_environments: 100
+  timeout_seconds: 300
+
+# Dataset settings
+dataset:
+  name: "osunlp/TravelPlanner"
+  split: "validation"
+  fallback_to_mock: true
+  mock_size: 10
+
+# Tools configuration
+tools:
+  available:
+    - "FlightSearch"
+    - "AccommodationSearch"
+    - "RestaurantSearch"
+    - "AttractionSearch"
+    - "GoogleDistanceMatrix"
+    - "CitySearch"
+    - "NotebookWrite"
+    - "Planner"
+  
+  # Mock data settings
+  mock_responses: true
+  response_delay: 0.1  # seconds
+
+# Reward settings
+rewards:
+  base_reward: 0.1
+  tool_use_reward: 0.2
+  notebook_reward: 0.1
+  planner_reward: 0.5
+  error_penalty: -0.3
+
+# Logging settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # Set to file path to log to file
+
+# API settings
+api:
+  max_request_size: 1048576  # 1MB
+  timeout: 30
+  rate_limit: 100  # requests per minute 
