@@ -7,14 +7,14 @@ import json
 import logging
 from typing import Dict, Any, Optional
 
-# 调试标志
+# Debug flag
 debug_flg = os.getenv("DEBUG", "false").lower() == "true"
 
 logger = logging.getLogger(__name__)
 
 
 def safe_json_loads(json_str: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """安全地解析 JSON 字符串"""
+    """Safely parse JSON string"""
     if default is None:
         default = {}
     
@@ -26,14 +26,14 @@ def safe_json_loads(json_str: str, default: Optional[Dict[str, Any]] = None) -> 
 
 
 def format_action_result(tool_name: str, result: str, success: bool = True) -> str:
-    """格式化动作执行结果"""
+    """Format action execution result"""
     status = "✓" if success else "✗"
     return f"[{status}] {tool_name}: {result}"
 
 
 def extract_city_from_query(query: str) -> Optional[str]:
-    """从查询中提取城市名称的简单方法"""
-    # 简单的关键词匹配
+    """Simple method to extract city name from query"""
+    # Simple keyword matching
     cities = ["Paris", "Tokyo", "New York", "London", "Rome", "Barcelona", "Sydney", "Dubai"]
     query_lower = query.lower()
     
@@ -45,15 +45,15 @@ def extract_city_from_query(query: str) -> Optional[str]:
 
 
 def extract_days_from_query(query: str) -> int:
-    """从查询中提取天数"""
+    """Extract number of days from query"""
     import re
     
-    # 查找数字+天的模式
+    # Find patterns of number + day
     patterns = [
         r'(\d+)[-\s]*day',
         r'(\d+)[-\s]*days',
         r'for\s+(\d+)\s+days?',
-        r'(\d+)\s*天'
+        r'(\d+)\s*days'
     ]
     
     for pattern in patterns:
@@ -64,26 +64,26 @@ def extract_days_from_query(query: str) -> int:
             except ValueError:
                 continue
     
-    return 5  # 默认5天
+    return 5  # Default 5 days
 
 
 def extract_budget_from_query(query: str) -> Optional[int]:
-    """从查询中提取预算"""
+    """Extract budget from query"""
     import re
     
-    # 查找金额模式
+    # Find amount patterns
     patterns = [
         r'\$(\d+(?:,\d{3})*)',
         r'(\d+(?:,\d{3})*)\s*dollars?',
         r'budget\s+of\s+\$?(\d+(?:,\d{3})*)',
-        r'(\d+(?:,\d{3})*)\s*元'
+        r'(\d+(?:,\d{3})*)\s*USD'
     ]
     
     for pattern in patterns:
         match = re.search(pattern, query.lower())
         if match:
             try:
-                # 移除逗号并转换为整数
+                # Remove commas and convert to integer
                 amount_str = match.group(1).replace(',', '')
                 return int(amount_str)
             except ValueError:
@@ -93,7 +93,7 @@ def extract_budget_from_query(query: str) -> Optional[int]:
 
 
 def validate_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> bool:
-    """验证工具输入参数"""
+    """Validate tool input parameters"""
     required_params = {
         "FlightSearch": ["departure_city", "destination_city"],
         "AccommodationSearch": ["city"],
@@ -113,13 +113,13 @@ def validate_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> bool:
 
 
 def log_environment_action(env_id: int, step: int, action: str, result: str):
-    """记录环境动作"""
+    """Log environment action"""
     if debug_flg:
         logger.debug(f"Env {env_id} Step {step}: {action[:100]}... -> {result[:200]}...")
 
 
 def get_mock_data_for_city(city: str) -> Dict[str, Any]:
-    """获取城市的模拟数据"""
+    """Get mock data for city"""
     mock_data = {
         "Paris": {
             "flights": ["CDG Airport", "Orly Airport"],

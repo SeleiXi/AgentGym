@@ -2,8 +2,8 @@
 
 # Server settings
 server:
-  host: "0.0.0.0"
-  port: 8000
+  host: "127.0.0.1"
+  port: 59399
   workers: 1
   log_level: "info"
   debug: false
@@ -36,6 +36,26 @@ tools:
   # Mock data settings
   mock_responses: true
   response_delay: 0.1  # seconds
+  timeout: 30  # seconds
+  retry_limit: 3
+  
+  # Individual tool settings
+  flight:
+    enabled: true
+  accommodation:
+    enabled: true
+  restaurant:
+    enabled: true
+  attraction:
+    enabled: true
+  distance:
+    enabled: true
+  city:
+    enabled: true
+  notebook:
+    enabled: true
+  planner:
+    enabled: true
 
 # Reward settings
 rewards:
@@ -44,6 +64,9 @@ rewards:
   notebook_reward: 0.1
   planner_reward: 0.5
   error_penalty: -0.3
+  success_reward: 100.0
+  step_penalty: -0.1
+  failure_penalty: -10.0
 
 # Logging settings
 logging:
@@ -55,4 +78,36 @@ logging:
 api:
   max_request_size: 1048576  # 1MB
   timeout: 30
-  rate_limit: 100  # requests per minute 
+  rate_limit: 100  # requests per minute
+  
+  # API configurations for various tools
+  openai:
+    api_key: null  # Set your OpenAI API key
+    model: "gpt-3.5-turbo"
+  
+  google:
+    api_key: null  # Set your Google API key
+
+# Model configurations 
+models:
+  react_llm_name: "gpt-3.5-turbo"
+  planner_llm_name: "gpt-3.5-turbo"
+
+# Agent configuration
+agent:
+  mode: "two_stage"  # two_stage or sole_planning
+  strategy: "direct"  # direct, react, reflexion
+  verbose: true
+
+# Travel planning parameters
+travel:
+  max_duration: 7      # Maximum travel days
+  max_budget: 10000    # Maximum budget
+  people_number: 2     # Number of travelers
+  
+  # Default planning preferences
+  preferences:
+    transportation: "any"
+    accommodation: "any"
+    cuisine: "any"
+    activities: ["sightseeing"] 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def launch():
-    """启动 TravelPlanner 环境服务器的入口点"""
+    """Entry point for launching TravelPlanner environment server"""
     
     parser = argparse.ArgumentParser(
         description="Launch TravelPlanner Environment Server for AgentGym"
@@ -18,14 +18,14 @@ def launch():
     parser.add_argument(
         "--host", 
         type=str, 
-        default="0.0.0.0",
-        help="Host to bind the server to (default: 0.0.0.0)"
+        default="127.0.0.1",
+        help="Host to bind the server to (default: 127.0.0.1)"
     )
     parser.add_argument(
         "--port", 
         type=int, 
-        default=8000,
-        help="Port to bind the server to (default: 8000)"
+        default=59399,
+        help="Port to bind the server to (default: 59399)"
     )
     parser.add_argument(
         "--workers",
@@ -48,7 +48,7 @@ def launch():
     
     args = parser.parse_args()
     
-    # 配置日志
+    # Configure logging
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -59,9 +59,9 @@ def launch():
     logger.info(f"Workers: {args.workers}, Log Level: {args.log_level}")
     
     try:
-        # 启动服务器
+        # Start server
         uvicorn.run(
-            "agentenv_travelplanner.server:app",
+            "server:app",
             host=args.host,
             port=args.port,
             workers=args.workers if not args.reload else 1,

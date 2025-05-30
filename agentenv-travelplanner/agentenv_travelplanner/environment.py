@@ -10,13 +10,13 @@ from typing import Dict, Any, List, Tuple, Optional
 from datasets import load_dataset
 import yaml
 
-# 设置日志
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class TravelPlannerEnvironment:
-    """TravelPlanner 环境核心实现"""
+    """TravelPlanner environment core implementation"""
     
     def __init__(self):
         self.dataset = None
@@ -33,9 +33,9 @@ class TravelPlannerEnvironment:
         self.load_dataset()
         
     def load_dataset(self):
-        """加载 TravelPlanner 数据集"""
+        """Load TravelPlanner dataset"""
         try:
-            # 尝试加载数据集，如果失败则使用模拟数据
+            # Try to load dataset, use mock data if failed
             self.dataset = load_dataset("osunlp/TravelPlanner", split="validation")
             logger.info(f"Successfully loaded TravelPlanner dataset with {len(self.dataset)} samples")
         except Exception as e:
@@ -43,7 +43,7 @@ class TravelPlannerEnvironment:
             self.dataset = self._create_mock_dataset()
     
     def _create_mock_dataset(self):
-        """创建模拟数据集"""
+        """Create mock dataset"""
         mock_data = []
         for i in range(10):
             mock_data.append({
@@ -54,12 +54,12 @@ class TravelPlannerEnvironment:
         return mock_data
     
     def reset(self, query_id: int = 0) -> Dict[str, Any]:
-        """重置环境"""
+        """Reset environment"""
         self.step_count = 0
         self.conversation_history = []
         self.notebook_content = []
         
-        # 获取查询
+        # Get query
         if query_id < len(self.dataset):
             self.current_query = self.dataset[query_id]
         else:
@@ -81,7 +81,7 @@ class TravelPlannerEnvironment:
         }
     
     def _get_initial_state(self) -> str:
-        """获取初始状态描述"""
+        """Get initial state description"""
         return f"""Welcome to TravelPlanner! 
 
 Travel Query: {self.current_query['query']}
@@ -106,19 +106,20 @@ Action: Planner with Action Input: {{"query": "Create a detailed travel plan bas
 What would you like to do first?"""
     
     def step(self, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """执行一步动作"""
+        """Execute one step action"""
         self.step_count += 1
         
-        # 解析动作
+        
+        # Parse action
         tool_name, tool_input = self._parse_action(action)
         
         if tool_name is None:
             return self._handle_invalid_action(action)
         
-        # 执行工具
+        # Execute tool
         result = self._execute_tool(tool_name, tool_input)
         
-        # 更新对话历史
+        # Update conversation history
         self.conversation_history.append({
             'step': self.step_count,
             'action': action,
@@ -127,11 +128,11 @@ What would you like to do first?"""
             'result': result
         })
         
-        # 计算奖励和是否完成
+        # Calculate reward and completion status
         reward = self._calculate_reward(tool_name, result)
         done = self._is_done(tool_name, result)
         
-        # 构建新状态
+        # Build new state
         new_state = self._build_state(result, tool_name)
         
         info = {
@@ -146,22 +147,22 @@ What would you like to do first?"""
         return new_state, reward, done, info
     
     def _parse_action(self, action: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
-        """解析动作字符串"""
+        """Parse action string"""
         try:
             if "Action:" not in action:
                 return None, None
             
-            # 提取工具名和输入
+            # Extract tool name and input
             action_part = action.split("Action:")[1].strip()
             if " with Action Input:" in action_part:
                 tool_name = action_part.split(" with Action Input:")[0].strip()
                 input_part = action_part.split(" with Action Input:")[1].strip()
                 
-                # 解析 JSON 输入
+                # Parse JSON input
                 try:
                     tool_input = json.loads(input_part)
                 except json.JSONDecodeError:
-                    # 如果不是有效的 JSON，返回字符串
+                    # If not valid JSON, return as string
                     tool_input = {"query": input_part}
             else:
                 tool_name = action_part.strip()
@@ -174,11 +175,11 @@ What would you like to do first?"""
             return None, None
     
     def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
-        """执行工具调用"""
+        """Execute tool call"""
         if tool_name not in self.available_tools:
             return f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(self.available_tools)}"
         
-        # 模拟工具执行结果
+        # Mock tool execution results
         if tool_name == "FlightSearch":
             return self._mock_flight_search(tool_input)
         elif tool_name == "AccommodationSearch":
@@ -199,7 +200,7 @@ What would you like to do first?"""
             return f"Tool '{tool_name}' is not implemented yet."
     
     def _mock_flight_search(self, params: Dict[str, Any]) -> str:
-        """模拟航班搜索"""
+        """Mock flight search"""
         departure = params.get('departure_city', 'Unknown')
         destination = params.get('destination_city', 'Unknown')
         date = params.get('date', 'Unknown')
@@ -213,7 +214,7 @@ What would you like to do first?"""
         return f"Found {len(flights)} flights from {departure} to {destination} on {date}:\n" + "\n".join(flights)
     
     def _mock_accommodation_search(self, params: Dict[str, Any]) -> str:
-        """模拟住宿搜索"""
+        """Mock accommodation search"""
         city = params.get('city', 'Unknown')
         
         hotels = [
@@ -225,7 +226,7 @@ What would you like to do first?"""
         return f"Found {len(hotels)} accommodations in {city}:\n" + "\n".join(hotels)
     
     def _mock_restaurant_search(self, params: Dict[str, Any]) -> str:
-        """模拟餐厅搜索"""
+        """Mock restaurant search"""
         city = params.get('city', 'Unknown')
         cuisine = params.get('cuisine', 'any')
         
@@ -238,7 +239,7 @@ What would you like to do first?"""
         return f"Found {len(restaurants)} restaurants in {city} for {cuisine} cuisine:\n" + "\n".join(restaurants)
     
     def _mock_attraction_search(self, params: Dict[str, Any]) -> str:
-        """模拟景点搜索"""
+        """Mock attraction search"""
         city = params.get('city', 'Unknown')
         
         attractions = [
@@ -250,7 +251,7 @@ What would you like to do first?"""
         return f"Found {len(attractions)} attractions in {city}:\n" + "\n".join(attractions)
     
     def _mock_distance_search(self, params: Dict[str, Any]) -> str:
-        """模拟距离搜索"""
+        """Mock distance search"""
         origin = params.get('origin', 'Unknown')
         destination = params.get('destination', 'Unknown')
         
@@ -260,7 +261,7 @@ What would you like to do first?"""
         return f"Distance from {origin} to {destination}: {distance} km, approximately {duration} minutes by car"
     
     def _mock_city_search(self, params: Dict[str, Any]) -> str:
-        """模拟城市搜索"""
+        """Mock city search"""
         state = params.get('state', 'Unknown')
         
         cities = [f"City A in {state}", f"City B in {state}", f"City C in {state}"]
@@ -268,7 +269,7 @@ What would you like to do first?"""
         return f"Found {len(cities)} cities in {state}:\n" + "\n".join(cities)
     
     def _handle_notebook_write(self, params: Dict[str, Any]) -> str:
-        """处理笔记写入"""
+        """Handle notebook writing"""
         content = params.get('content', '')
         self.notebook_content.append({
             'step': self.step_count,
@@ -278,25 +279,25 @@ What would you like to do first?"""
         return f"Successfully wrote to notebook: {content}"
     
     def _handle_planner(self, params: Dict[str, Any]) -> str:
-        """处理计划生成"""
-        # 使用提供的查询或默认查询
+        """Handle plan generation"""
+        # Use provided query or default query
         if self.current_query is not None:
             query = params.get('query', self.current_query['query'])
         else:
             query = params.get('query', 'Create a travel plan')
         
-        # 基于收集的信息生成计划
+        # Generate plan based on collected information
         plan = self._generate_travel_plan()
         
         return f"Generated travel plan:\n\n{plan}"
     
     def _generate_travel_plan(self) -> str:
-        """生成旅行计划"""
-        # 安全获取天数
+        """Generate travel plan"""
+        # Safe get days
         if self.current_query is not None and 'days' in self.current_query:
             days = self.current_query.get('days', 5)
         else:
-            days = 5  # 默认5天
+            days = 5  # Default 5 days
         
         plan_template = f"""# {days}-Day Travel Plan
 
@@ -324,50 +325,50 @@ What would you like to do first?"""
 ## Notes from Research
 """
         
-        # 添加笔记内容
+        # Add note contents
         for note in self.notebook_content:
             plan_template += f"- {note['content']}\n"
         
         return plan_template
     
     def _calculate_reward(self, tool_name: str, result: str) -> float:
-        """计算奖励"""
-        reward = 0.1  # 基础奖励
+        """Calculate reward"""
+        reward = 0.1  # Base reward
         
-        # 使用不同工具的奖励
+        # Use different tool rewards
         if tool_name in ["FlightSearch", "AccommodationSearch", "RestaurantSearch", "AttractionSearch"]:
             reward += 0.2
         elif tool_name == "NotebookWrite":
             reward += 0.1
         elif tool_name == "Planner":
-            reward += 0.5  # 生成计划的高奖励
+            reward += 0.5  # High reward for generating plan
         
-        # 错误惩罚
+        # Error penalty
         if "Error:" in result:
             reward -= 0.3
         
         return max(0.0, reward)
     
     def _is_done(self, tool_name: str, result: str) -> bool:
-        """判断是否完成"""
-        # 如果使用了 Planner 工具且成功生成计划，则完成
+        """Determine if done"""
+        # If Planner tool used and plan generated successfully, then done
         if tool_name == "Planner" and "Generated travel plan:" in result:
             return True
         
-        # 如果达到最大步数
+        # If reach max steps
         if self.step_count >= self.max_steps:
             return True
         
         return False
     
     def _build_state(self, result: str, tool_name: str) -> str:
-        """构建状态描述"""
+        """Build state description"""
         state = f"Step {self.step_count}/{self.max_steps}\n\n"
         state += f"Tool Result:\n{result}\n\n"
         
         if self.notebook_content:
             state += "Notebook Contents:\n"
-            for note in self.notebook_content[-3:]:  # 显示最近3条笔记
+            for note in self.notebook_content[-3:]:  # Show recent 3 notes
                 state += f"- {note['content']}\n"
             state += "\n"
         
@@ -378,7 +379,7 @@ What would you like to do first?"""
         return state
     
     def _handle_invalid_action(self, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """处理无效动作"""
+        """Handle invalid action"""
         error_msg = f"Invalid action format: {action}\n\nPlease use the format:\nAction: [ToolName] with Action Input: [JSON parameters]"
         
         info = {
@@ -391,7 +392,7 @@ What would you like to do first?"""
 
 
 class TravelPlannerEnvServer:
-    """TravelPlanner 环境服务器"""
+    """TravelPlanner environment server"""
     
     def __init__(self):
         self._max_id = 0
@@ -399,7 +400,7 @@ class TravelPlannerEnvServer:
         self.env_info = {}
     
     def create(self) -> int:
-        """创建新的环境实例"""
+        """Create new environment instance"""
         try:
             env_id = self._max_id
             self.environments[env_id] = TravelPlannerEnvironment()
@@ -412,7 +413,7 @@ class TravelPlannerEnvServer:
             raise
     
     def reset(self, env_idx: int, query_id: int) -> Tuple[str, Dict[str, Any]]:
-        """重置环境"""
+        """Reset environment"""
         try:
             self._check_env_id(env_idx)
             reset_result = self.environments[env_idx].reset(query_id)
@@ -423,7 +424,7 @@ class TravelPlannerEnvServer:
             raise
     
     def step(self, env_idx: int, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """执行步骤"""
+        """Execute step"""
         try:
             self._check_env_id(env_idx)
             result = self.environments[env_idx].step(action)
@@ -434,7 +435,7 @@ class TravelPlannerEnvServer:
             raise
     
     def get_info(self, env_idx: int) -> Dict[str, Any]:
-        """获取环境信息"""
+        """Get environment information"""
         try:
             self._check_env_id(env_idx)
             env = self.environments[env_idx]
@@ -450,16 +451,16 @@ class TravelPlannerEnvServer:
             raise
     
     def list_environments(self) -> List[int]:
-        """列出所有环境"""
+        """List all environments"""
         return list(self.environments.keys())
     
     def _check_env_id(self, env_idx: int):
-        """检查环境ID是否有效"""
+        """Check if environment ID is valid"""
         if env_idx not in self.environments:
             raise ValueError(f"Environment {env_idx} does not exist")
         if not self.env_info[env_idx]["active"]:
             raise ValueError(f"Environment {env_idx} is not active")
 
 
-# 创建全局服务器实例
+# Create global server instance
 travelplanner_env_server = TravelPlannerEnvServer() 

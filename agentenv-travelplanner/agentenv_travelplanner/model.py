@@ -3,18 +3,18 @@ from typing import Optional, Dict, Any, List
 
 
 class CreateResponse(BaseModel):
-    """响应创建环境的结果"""
+    """Response for environment creation result"""
     id: int
 
 
 class StepQuery(BaseModel):
-    """步骤请求的数据模型"""
+    """Data model for step requests"""
     env_idx: int
     action: str
 
 
 class StepResponse(BaseModel):
-    """步骤响应的数据模型"""
+    """Data model for step responses"""
     state: str
     reward: float
     done: bool
@@ -22,22 +22,22 @@ class StepResponse(BaseModel):
 
 
 class ResetQuery(BaseModel):
-    """重置请求的数据模型"""
+    """Data model for reset requests"""
     env_idx: int
     query_id: int
 
 
 class ResetResponse(BaseModel):
-    """重置响应的数据模型"""
+    """Data model for reset responses"""
     state: str
     info: Dict[str, Any]
 
 
 class ObservationResponse(BaseModel):
-    """观察响应的数据模型"""
+    """Data model for observation responses"""
     observation: str
 
 
 class InfoResponse(BaseModel):
-    """信息响应的数据模型"""
+    """Data model for info responses"""
     info: Dict[str, Any] 
