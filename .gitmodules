@@ -1,3 +1,7 @@
 [submodule "agentenv-lmrlgym/lmrlgym"]
 	path = agentenv-lmrlgym/lmrlgym
 	url = https://github.com/abdulhaim/LMRL-Gym.git
+
+[submodule "agentenv-travelplanner/TravelPlanner"]
+	path = agentenv-travelplanner/TravelPlanner
+	url = https://github.com/OSU-NLP-Group/TravelPlanner.git
