@@ -7,6 +7,7 @@ import time
 from typing import List, Dict, Any
 
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 
 from environment import travelplanner_env_server
 from model import *
@@ -68,10 +69,17 @@ async def create():
 async def reset(reset_query: ResetQuery):
     """Reset environment"""
     try:
-        logger.info(f"Resetting environment {reset_query.env_idx} with query_id {reset_query.query_id}")
-        state, info = travelplanner_env_server.reset(reset_query.env_idx, reset_query.query_id)
+        logger.info(f"Resetting environment {reset_query.env_idx} with query: {reset_query.query}")
+        result = travelplanner_env_server.reset(
+            reset_query.env_idx, 
+            reset_query.query, 
+            use_react_agent=getattr(reset_query, 'use_react_agent', True)
+        )
         
-        return ResetResponse(state=state, info=info)
+        return ResetResponse(
+            observation=result['observation'],
+            info=result['info']
+        )
     except ValueError as e:
         logger.error(f"Invalid environment ID: {e}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -85,9 +93,14 @@ async def step(step_query: StepQuery):
     """Execute environment step"""
     try:
         logger.info(f"Step in environment {step_query.env_idx}: {step_query.action[:100]}...")
-        state, reward, done, info = travelplanner_env_server.step(step_query.env_idx, step_query.action)
+        result = travelplanner_env_server.step(step_query.env_idx, step_query.action)
         
-        return StepResponse(state=state, reward=reward, done=done, info=info)
+        return StepResponse(
+            observation=result['observation'],
+            reward=result['reward'],
+            done=result['done'],
+            info=result['info']
+        )
     except ValueError as e:
         logger.error(f"Invalid environment or action: {e}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -96,12 +109,23 @@ async def step(step_query: StepQuery):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/info", response_model=InfoResponse)
+@app.get("/info/{env_idx}", response_model=InfoResponse)
 async def get_info(env_idx: int):
     """Get environment information"""
     try:
         logger.info(f"Getting info for environment {env_idx}")
-        info = travelplanner_env_server.get_info(env_idx)
+        if env_idx in travelplanner_env_server.envs:
+            env_data = travelplanner_env_server.envs[env_idx]
+            info = {
+                'step_count': env_data['step_count'],
+                'max_steps': env_data['max_steps'],
+                'query': env_data['query'],
+                'history_length': len(env_data['history']),
+                'done': env_data['done']
+            }
+        else:
+            info = {'error': 'Environment not found'}
+        
         return InfoResponse(info=info)
     except ValueError as e:
         logger.error(f"Invalid environment ID: {e}")
@@ -144,13 +168,19 @@ async def get_observation(env_idx: int):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     logger.error(f"HTTP exception: {exc.status_code} - {exc.detail}")
-    return {"error": exc.detail, "status_code": exc.status_code}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.detail, "status_code": exc.status_code}
+    )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unexpected error: {str(exc)}")
-    return {"error": "Internal server error", "details": str(exc)}
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "details": str(exc)}
+    )
 
 
 if __name__ == "__main__":

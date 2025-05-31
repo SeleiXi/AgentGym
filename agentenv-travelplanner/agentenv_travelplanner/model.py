@@ -15,7 +15,7 @@ class StepQuery(BaseModel):
 
 class StepResponse(BaseModel):
     """Data model for step responses"""
-    state: str
+    observation: str
     reward: float
     done: bool
     info: Dict[str, Any]
@@ -24,12 +24,13 @@ class StepResponse(BaseModel):
 class ResetQuery(BaseModel):
     """Data model for reset requests"""
     env_idx: int
-    query_id: int
+    query: str
+    use_react_agent: Optional[bool] = True
 
 
 class ResetResponse(BaseModel):
     """Data model for reset responses"""
-    state: str
+    observation: str
     info: Dict[str, Any]
 
 

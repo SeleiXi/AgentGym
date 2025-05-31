@@ -3,6 +3,7 @@ TravelPlanner Environment Implementation
 """
 
 import os
+import sys
 import json
 import random
 import logging
@@ -10,457 +11,341 @@ from typing import Dict, Any, List, Tuple, Optional
 from datasets import load_dataset
 import yaml
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 添加 TravelPlanner 路径以导入工具
+current_dir = os.path.dirname(os.path.abspath(__file__))
+travelplanner_dir = os.path.join(current_dir, '..', 'TravelPlanner')
+travelplanner_dir = os.path.abspath(travelplanner_dir)
 
+# 确保 TravelPlanner 目录在 Python 路径中
+if travelplanner_dir not in sys.path:
+    sys.path.insert(0, travelplanner_dir)
+
+# 添加子目录到路径
+tools_dir = os.path.join(travelplanner_dir, 'tools')
+agents_dir = os.path.join(travelplanner_dir, 'agents')
+utils_dir = os.path.join(travelplanner_dir, 'utils')
+
+for path in [tools_dir, agents_dir, utils_dir]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+# 导入真实的工具类
+from tools.flights.apis import Flights
+from tools.accommodations.apis import Accommodations
+from tools.restaurants.apis import Restaurants
+from tools.attractions.apis import Attractions
+from tools.googleDistanceMatrix.apis import GoogleDistanceMatrix
+from tools.cities.apis import Cities
+from tools.notebook.apis import Notebook
+# from tools.planner.apis import Planner  # 注释掉 planner 导入
+
+# Mock工具实现保持不变以防需要
+class MockFlights:
+    def run(self, origin: str, destination: str, departure_date: str):
+        return f"Mock flight from {origin} to {destination} on {departure_date}: Flight AA123, $299"
+
+class MockAccommodations:
+    def run(self, city: str):
+        return f"Mock accommodation in {city}: Hotel ABC, $150/night"
+
+class MockRestaurants:
+    def run(self, city: str):
+        return f"Mock restaurant in {city}: Restaurant XYZ, Italian cuisine, 4.5 stars"
+
+class MockAttractions:
+    def run(self, city: str):
+        return f"Mock attraction in {city}: Famous Museum, 5 stars"
+
+class MockDistanceMatrix:
+    def run(self, origin: str, destination: str, mode: str = 'driving'):
+        return f"Mock {mode} from {origin} to {destination}: 2 hours, 100 miles, $50"
+
+class MockCities:
+    def run(self, state: str):
+        return [f"City1({state})", f"City2({state})", f"City3({state})"]
+
+class MockNotebook:
+    def __init__(self):
+        self.data = []
+    
+    def write(self, input_data, short_description: str):
+        self.data.append({"Short Description": short_description, "Content": input_data})
+        return f"The information has been recorded in Notebook, and its index is {len(self.data)-1}."
+    
+    def list(self):
+        return [{"index": i, "Short Description": item['Short Description']} for i, item in enumerate(self.data)]
+
+# class MockPlanner:  # 注释掉 MockPlanner
+#     def run(self, text: str, query: str):
+#         return f"Mock plan for query: {query[:100]}..."
 
 class TravelPlannerEnvironment:
-    """TravelPlanner environment core implementation"""
-    
-    def __init__(self):
-        self.dataset = None
-        self.current_query = None
-        self.conversation_history = []
-        self.available_tools = [
-            "FlightSearch", "AccommodationSearch", "RestaurantSearch", 
-            "AttractionSearch", "GoogleDistanceMatrix", "CitySearch",
-            "NotebookWrite", "Planner"
-        ]
-        self.notebook_content = []
-        self.step_count = 0
-        self.max_steps = 30
-        self.load_dataset()
+    def __init__(self, use_real_tools: bool = True):
+        self.use_real_tools = use_real_tools
+        self.envs = {}
+        self._max_id = 0  # 用于生成环境ID
+        self.setup_tools()
         
-    def load_dataset(self):
-        """Load TravelPlanner dataset"""
-        try:
-            # Try to load dataset, use mock data if failed
-            self.dataset = load_dataset("osunlp/TravelPlanner", split="validation")
-            logger.info(f"Successfully loaded TravelPlanner dataset with {len(self.dataset)} samples")
-        except Exception as e:
-            logger.warning(f"Failed to load dataset: {e}, using mock data")
-            self.dataset = self._create_mock_dataset()
-    
-    def _create_mock_dataset(self):
-        """Create mock dataset"""
-        mock_data = []
-        for i in range(10):
-            mock_data.append({
-                'query': f'Plan a {random.choice([3, 5, 7])}-day trip to {random.choice(["Paris", "Tokyo", "New York", "London"])} for {random.randint(1, 4)} people with a budget of ${random.randint(1000, 5000)}.',
-                'level': random.choice(['easy', 'medium', 'hard']),
-                'days': random.choice([3, 5, 7])
-            })
-        return mock_data
-    
-    def reset(self, query_id: int = 0) -> Dict[str, Any]:
-        """Reset environment"""
-        self.step_count = 0
-        self.conversation_history = []
-        self.notebook_content = []
-        
-        # Get query
-        if query_id < len(self.dataset):
-            self.current_query = self.dataset[query_id]
+    def setup_tools(self):
+        """初始化工具"""
+        if self.use_real_tools:
+            try:
+                # 使用真实的 TravelPlanner 工具
+                print("Setting up real TravelPlanner tools...")
+                self.flights = Flights()
+                self.accommodations = Accommodations()
+                self.restaurants = Restaurants()
+                self.attractions = Attractions()
+                self.distance_matrix = GoogleDistanceMatrix()
+                self.cities = Cities()
+                self.notebook = Notebook()
+                # self.planner = Planner()  # 注释掉 planner 初始化
+                print("Real TravelPlanner tools setup complete.")
+            except Exception as e:
+                print(f"Failed to setup real tools, falling back to mock tools: {e}")
+                self.setup_mock_tools()
         else:
-            self.current_query = self.dataset[query_id % len(self.dataset)]
-        
-        initial_state = self._get_initial_state()
-        
-        return {
-            'state': initial_state,
-            'info': {
-                'query_id': query_id,
-                'query': self.current_query['query'],
-                'level': self.current_query.get('level', 'medium'),
-                'days': self.current_query.get('days', 5),
-                'step_count': self.step_count,
-                'max_steps': self.max_steps,
-                'available_tools': self.available_tools
-            }
-        }
+            self.setup_mock_tools()
     
-    def _get_initial_state(self) -> str:
-        """Get initial state description"""
-        return f"""Welcome to TravelPlanner! 
+    def setup_mock_tools(self):
+        """设置模拟工具"""
+        print("Setting up mock tools...")
+        self.flights = MockFlights()
+        self.accommodations = MockAccommodations()
+        self.restaurants = MockRestaurants()
+        self.attractions = MockAttractions()
+        self.distance_matrix = MockDistanceMatrix()
+        self.cities = MockCities()
+        self.notebook = MockNotebook()
+        # self.planner = MockPlanner()  # 注释掉 mock planner
+        print("Mock tools setup complete.")
 
-Travel Query: {self.current_query['query']}
-
-You have access to the following tools:
-{', '.join(self.available_tools)}
-
-Your task is to gather information using the available tools and create a comprehensive travel plan. 
-
-Please start by using tools to search for relevant information. Format your actions as:
-Action: [ToolName] with Action Input: [JSON parameters]
-
-Example:
-Action: FlightSearch with Action Input: {{"departure_city": "New York", "destination_city": "Paris", "date": "2024-06-01"}}
-
-You can also write information to your notebook:
-Action: NotebookWrite with Action Input: {{"content": "Found great flight options..."}}
-
-When ready to create the final plan:
-Action: Planner with Action Input: {{"query": "Create a detailed travel plan based on gathered information"}}
-
-What would you like to do first?"""
-    
-    def step(self, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """Execute one step action"""
-        self.step_count += 1
-        
-        
-        # Parse action
-        tool_name, tool_input = self._parse_action(action)
-        
-        if tool_name is None:
-            return self._handle_invalid_action(action)
-        
-        # Execute tool
-        result = self._execute_tool(tool_name, tool_input)
-        
-        # Update conversation history
-        self.conversation_history.append({
-            'step': self.step_count,
-            'action': action,
-            'tool': tool_name,
-            'input': tool_input,
-            'result': result
-        })
-        
-        # Calculate reward and completion status
-        reward = self._calculate_reward(tool_name, result)
-        done = self._is_done(tool_name, result)
-        
-        # Build new state
-        new_state = self._build_state(result, tool_name)
-        
-        info = {
-            'step_count': self.step_count,
-            'max_steps': self.max_steps,
-            'tool_used': tool_name,
-            'tool_result': result,
-            'conversation_history': self.conversation_history,
-            'notebook_content': self.notebook_content
-        }
-        
-        return new_state, reward, done, info
-    
-    def _parse_action(self, action: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
-        """Parse action string"""
-        try:
-            if "Action:" not in action:
-                return None, None
-            
-            # Extract tool name and input
-            action_part = action.split("Action:")[1].strip()
-            if " with Action Input:" in action_part:
-                tool_name = action_part.split(" with Action Input:")[0].strip()
-                input_part = action_part.split(" with Action Input:")[1].strip()
-                
-                # Parse JSON input
-                try:
-                    tool_input = json.loads(input_part)
-                except json.JSONDecodeError:
-                    # If not valid JSON, return as string
-                    tool_input = {"query": input_part}
-            else:
-                tool_name = action_part.strip()
-                tool_input = {}
-            
-            return tool_name, tool_input
-            
-        except Exception as e:
-            logger.error(f"Failed to parse action: {e}")
-            return None, None
-    
-    def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
-        """Execute tool call"""
-        if tool_name not in self.available_tools:
-            return f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(self.available_tools)}"
-        
-        # Mock tool execution results
-        if tool_name == "FlightSearch":
-            return self._mock_flight_search(tool_input)
-        elif tool_name == "AccommodationSearch":
-            return self._mock_accommodation_search(tool_input)
-        elif tool_name == "RestaurantSearch":
-            return self._mock_restaurant_search(tool_input)
-        elif tool_name == "AttractionSearch":
-            return self._mock_attraction_search(tool_input)
-        elif tool_name == "GoogleDistanceMatrix":
-            return self._mock_distance_search(tool_input)
-        elif tool_name == "CitySearch":
-            return self._mock_city_search(tool_input)
-        elif tool_name == "NotebookWrite":
-            return self._handle_notebook_write(tool_input)
-        elif tool_name == "Planner":
-            return self._handle_planner(tool_input)
-        else:
-            return f"Tool '{tool_name}' is not implemented yet."
-    
-    def _mock_flight_search(self, params: Dict[str, Any]) -> str:
-        """Mock flight search"""
-        departure = params.get('departure_city', 'Unknown')
-        destination = params.get('destination_city', 'Unknown')
-        date = params.get('date', 'Unknown')
-        
-        flights = [
-            f"Flight AA123: {departure} to {destination} on {date}, $450, 8:00AM-2:00PM",
-            f"Flight UA456: {departure} to {destination} on {date}, $520, 10:30AM-4:30PM",
-            f"Flight DL789: {departure} to {destination} on {date}, $380, 2:15PM-8:15PM"
-        ]
-        
-        return f"Found {len(flights)} flights from {departure} to {destination} on {date}:\n" + "\n".join(flights)
-    
-    def _mock_accommodation_search(self, params: Dict[str, Any]) -> str:
-        """Mock accommodation search"""
-        city = params.get('city', 'Unknown')
-        
-        hotels = [
-            f"Grand Hotel {city}: 4-star, $150/night, downtown location",
-            f"Budget Inn {city}: 3-star, $80/night, near airport",
-            f"Luxury Resort {city}: 5-star, $300/night, city center"
-        ]
-        
-        return f"Found {len(hotels)} accommodations in {city}:\n" + "\n".join(hotels)
-    
-    def _mock_restaurant_search(self, params: Dict[str, Any]) -> str:
-        """Mock restaurant search"""
-        city = params.get('city', 'Unknown')
-        cuisine = params.get('cuisine', 'any')
-        
-        restaurants = [
-            f"The Local Bistro: {cuisine} cuisine, $25-40 per person, 4.5/5 rating",
-            f"Street Food Market: Various cuisines, $10-20 per person, 4.2/5 rating",
-            f"Fine Dining Experience: {cuisine} cuisine, $60-100 per person, 4.8/5 rating"
-        ]
-        
-        return f"Found {len(restaurants)} restaurants in {city} for {cuisine} cuisine:\n" + "\n".join(restaurants)
-    
-    def _mock_attraction_search(self, params: Dict[str, Any]) -> str:
-        """Mock attraction search"""
-        city = params.get('city', 'Unknown')
-        
-        attractions = [
-            f"{city} Museum: Historical museum, $15 entry, 9AM-5PM daily",
-            f"{city} Central Park: Free outdoor space, perfect for walking",
-            f"{city} Tower: Observation deck, $25 entry, great city views"
-        ]
-        
-        return f"Found {len(attractions)} attractions in {city}:\n" + "\n".join(attractions)
-    
-    def _mock_distance_search(self, params: Dict[str, Any]) -> str:
-        """Mock distance search"""
-        origin = params.get('origin', 'Unknown')
-        destination = params.get('destination', 'Unknown')
-        
-        distance = random.randint(5, 50)
-        duration = random.randint(15, 120)
-        
-        return f"Distance from {origin} to {destination}: {distance} km, approximately {duration} minutes by car"
-    
-    def _mock_city_search(self, params: Dict[str, Any]) -> str:
-        """Mock city search"""
-        state = params.get('state', 'Unknown')
-        
-        cities = [f"City A in {state}", f"City B in {state}", f"City C in {state}"]
-        
-        return f"Found {len(cities)} cities in {state}:\n" + "\n".join(cities)
-    
-    def _handle_notebook_write(self, params: Dict[str, Any]) -> str:
-        """Handle notebook writing"""
-        content = params.get('content', '')
-        self.notebook_content.append({
-            'step': self.step_count,
-            'content': content
-        })
-        
-        return f"Successfully wrote to notebook: {content}"
-    
-    def _handle_planner(self, params: Dict[str, Any]) -> str:
-        """Handle plan generation"""
-        # Use provided query or default query
-        if self.current_query is not None:
-            query = params.get('query', self.current_query['query'])
-        else:
-            query = params.get('query', 'Create a travel plan')
-        
-        # Generate plan based on collected information
-        plan = self._generate_travel_plan()
-        
-        return f"Generated travel plan:\n\n{plan}"
-    
-    def _generate_travel_plan(self) -> str:
-        """Generate travel plan"""
-        # Safe get days
-        if self.current_query is not None and 'days' in self.current_query:
-            days = self.current_query.get('days', 5)
-        else:
-            days = 5  # Default 5 days
-        
-        plan_template = f"""# {days}-Day Travel Plan
-
-## Day 1: Arrival
-- Morning: Arrive via flight (based on searched flights)
-- Afternoon: Check into hotel (based on accommodation search)
-- Evening: Dinner at local restaurant
-
-## Day 2-{days-1}: Exploration
-- Visit attractions found during search
-- Try recommended restaurants
-- Explore local areas
-
-## Day {days}: Departure
-- Morning: Final shopping/sightseeing
-- Afternoon: Check out and head to airport
-- Evening: Departure flight
-
-## Budget Summary
-- Flights: ~$450 per person
-- Accommodation: ~$150 per night
-- Food: ~$50 per day per person
-- Activities: ~$100 per day per person
-
-## Notes from Research
-"""
-        
-        # Add note contents
-        for note in self.notebook_content:
-            plan_template += f"- {note['content']}\n"
-        
-        return plan_template
-    
-    def _calculate_reward(self, tool_name: str, result: str) -> float:
-        """Calculate reward"""
-        reward = 0.1  # Base reward
-        
-        # Use different tool rewards
-        if tool_name in ["FlightSearch", "AccommodationSearch", "RestaurantSearch", "AttractionSearch"]:
-            reward += 0.2
-        elif tool_name == "NotebookWrite":
-            reward += 0.1
-        elif tool_name == "Planner":
-            reward += 0.5  # High reward for generating plan
-        
-        # Error penalty
-        if "Error:" in result:
-            reward -= 0.3
-        
-        return max(0.0, reward)
-    
-    def _is_done(self, tool_name: str, result: str) -> bool:
-        """Determine if done"""
-        # If Planner tool used and plan generated successfully, then done
-        if tool_name == "Planner" and "Generated travel plan:" in result:
-            return True
-        
-        # If reach max steps
-        if self.step_count >= self.max_steps:
-            return True
-        
-        return False
-    
-    def _build_state(self, result: str, tool_name: str) -> str:
-        """Build state description"""
-        state = f"Step {self.step_count}/{self.max_steps}\n\n"
-        state += f"Tool Result:\n{result}\n\n"
-        
-        if self.notebook_content:
-            state += "Notebook Contents:\n"
-            for note in self.notebook_content[-3:]:  # Show recent 3 notes
-                state += f"- {note['content']}\n"
-            state += "\n"
-        
-        if tool_name != "Planner":
-            state += "What would you like to do next? Available tools:\n"
-            state += ", ".join(self.available_tools)
-        
-        return state
-    
-    def _handle_invalid_action(self, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """Handle invalid action"""
-        error_msg = f"Invalid action format: {action}\n\nPlease use the format:\nAction: [ToolName] with Action Input: [JSON parameters]"
-        
-        info = {
-            'step_count': self.step_count,
-            'max_steps': self.max_steps,
-            'error': 'invalid_action_format'
-        }
-        
-        return error_msg, -0.1, False, info
-
-
-class TravelPlannerEnvServer:
-    """TravelPlanner environment server"""
-    
-    def __init__(self):
-        self._max_id = 0
-        self.environments = {}
-        self.env_info = {}
-    
     def create(self) -> int:
-        """Create new environment instance"""
-        try:
-            env_id = self._max_id
-            self.environments[env_id] = TravelPlannerEnvironment()
-            self.env_info[env_id] = {"created": True, "active": True}
-            self._max_id += 1
-            logger.info(f"Created new environment with ID: {env_id}")
-            return env_id
-        except Exception as e:
-            logger.error(f"Failed to create environment: {e}")
-            raise
-    
-    def reset(self, env_idx: int, query_id: int) -> Tuple[str, Dict[str, Any]]:
-        """Reset environment"""
-        try:
-            self._check_env_id(env_idx)
-            reset_result = self.environments[env_idx].reset(query_id)
-            logger.info(f"Reset environment {env_idx} with query_id {query_id}")
-            return reset_result['state'], reset_result['info']
-        except Exception as e:
-            logger.error(f"Failed to reset environment {env_idx}: {e}")
-            raise
-    
-    def step(self, env_idx: int, action: str) -> Tuple[str, float, bool, Dict[str, Any]]:
-        """Execute step"""
-        try:
-            self._check_env_id(env_idx)
-            result = self.environments[env_idx].step(action)
-            logger.info(f"Step in environment {env_idx}: {action[:50]}...")
-            return result
-        except Exception as e:
-            logger.error(f"Failed to step in environment {env_idx}: {e}")
-            raise
-    
-    def get_info(self, env_idx: int) -> Dict[str, Any]:
-        """Get environment information"""
-        try:
-            self._check_env_id(env_idx)
-            env = self.environments[env_idx]
-            return {
-                'step_count': env.step_count,
-                'max_steps': env.max_steps,
-                'current_query': env.current_query,
-                'notebook_content': env.notebook_content,
-                'conversation_history': env.conversation_history
-            }
-        except Exception as e:
-            logger.error(f"Failed to get info for environment {env_idx}: {e}")
-            raise
+        """创建新的环境实例"""
+        env_id = self._max_id
+        self._max_id += 1
+        
+        # 在 envs 字典中创建环境占位符，这样 step 方法就不会报错
+        self.envs[env_id] = {
+            'query': '',
+            'step_count': 0,
+            'max_steps': 30,
+            'history': [],
+            'notebook_data': [],
+            'use_react_agent': False,
+            'done': False,
+            'initialized': False  # 标记环境是否已经通过 reset 初始化
+        }
+        
+        print(f"Created environment with ID: {env_id}")
+        return env_id
     
     def list_environments(self) -> List[int]:
-        """List all environments"""
-        return list(self.environments.keys())
-    
-    def _check_env_id(self, env_idx: int):
-        """Check if environment ID is valid"""
-        if env_idx not in self.environments:
-            raise ValueError(f"Environment {env_idx} does not exist")
-        if not self.env_info[env_idx]["active"]:
-            raise ValueError(f"Environment {env_idx} is not active")
+        """列出所有环境实例"""
+        return list(self.envs.keys())
 
+    def reset(self, env_idx: int, query: str, use_react_agent: bool = True) -> Dict[str, Any]:
+        """重置环境状态"""
+        # 确保环境存在
+        if env_idx not in self.envs:
+            return {
+                'observation': 'Environment not found. Please create environment first.',
+                'info': {'error': 'Environment not found'}
+            }
+            
+        self.envs[env_idx] = {
+            'query': query,
+            'step_count': 0,
+            'max_steps': 30,
+            'history': [],
+            'notebook_data': [],
+            'use_react_agent': use_react_agent,
+            'done': False,
+            'initialized': True  # 标记环境已经初始化
+        }
+        
+        if use_react_agent:
+            try:
+                # 使用真实的 ReactAgent
+                from agents.tool_agents import ReactAgent
+                self.envs[env_idx]['agent'] = ReactAgent()
+                return {
+                    'observation': f'Environment reset successfully. Ready to plan: {query}',
+                    'info': {'agent_type': 'real_react_agent'}
+                }
+            except Exception as e:
+                print(f"Failed to create ReactAgent, using mock mode: {e}")
+                return {
+                    'observation': f'Environment reset successfully (mock mode). Ready to plan: {query}',
+                    'info': {'agent_type': 'mock'}
+                }
+        else:
+            return {
+                'observation': f'Environment reset successfully. Ready to plan: {query}',
+                'info': {'agent_type': 'direct_tools'}
+            }
 
-# Create global server instance
-travelplanner_env_server = TravelPlannerEnvServer() 
+    def step(self, env_idx: int, action: str) -> Dict[str, Any]:
+        """执行一步动作"""
+        if env_idx not in self.envs:
+            return {
+                'observation': 'Environment not found. Please create environment first.',
+                'reward': 0,
+                'done': True,
+                'info': {'error': 'Environment not found'}
+            }
+        
+        env = self.envs[env_idx]
+        
+        # 检查环境是否已经通过 reset 初始化
+        if not env.get('initialized', False):
+            return {
+                'observation': 'Environment not initialized. Please call reset first with a query.',
+                'reward': 0,
+                'done': True,
+                'info': {'error': 'Environment not initialized'}
+            }
+        
+        if env['done']:
+            return {
+                'observation': 'Episode already completed.',
+                'reward': 0,
+                'done': True,
+                'info': {'message': 'Episode completed'}
+            }
+        
+        env['step_count'] += 1
+        
+        # 检查是否超过最大步数
+        if env['step_count'] >= env['max_steps']:
+            env['done'] = True
+            return {
+                'observation': f'Maximum steps ({env["max_steps"]}) reached.',
+                'reward': 0,
+                'done': True,
+                'info': {'reason': 'max_steps_reached'}
+            }
+        
+        # 如果使用 ReactAgent
+        if env.get('use_react_agent', False) and 'agent' in env:
+            try:
+                observation = env['agent'].step(action)
+                env['history'].append({'action': action, 'observation': observation})
+                return {
+                    'observation': observation,
+                    'reward': 1,
+                    'done': False,
+                    'info': {'step': env['step_count'], 'agent_type': 'react_agent'}
+                }
+            except Exception as e:
+                return {
+                    'observation': f'Error in ReactAgent step: {str(e)}',
+                    'reward': 0,
+                    'done': False,
+                    'info': {'error': str(e), 'step': env['step_count']}
+                }
+        
+        # 解析动作
+        try:
+            observation, is_valid_action = self._execute_action(action)
+            env['history'].append({'action': action, 'observation': observation})
+            
+            # 根据动作是否有效来设置奖励
+            reward = 1 if is_valid_action else -1
+            
+            return {
+                'observation': observation,
+                'reward': reward,
+                'done': False,
+                'info': {'step': env['step_count'], 'agent_type': 'direct_tools', 'valid_action': is_valid_action}
+            }
+        except Exception as e:
+            return {
+                'observation': f'Error executing action: {str(e)}',
+                'reward': 0,
+                'done': False,
+                'info': {'error': str(e), 'step': env['step_count']}
+            }
+
+    def _execute_action(self, action: str) -> tuple[str, bool]:
+        """执行具体的动作，返回 (观察结果, 是否为有效动作)"""
+        action = action.strip()
+        
+        # 解析动作格式
+        if action.startswith('FlightSearch[') and action.endswith(']'):
+            params = action[13:-1]  # 移除 'FlightSearch[' 和 ']'
+            # 简单解析参数 (实际应该更robust)
+            parts = [p.strip() for p in params.split(',')]
+            if len(parts) >= 3:
+                origin, destination, date = parts[0], parts[1], parts[2]
+                result = self.flights.run(origin, destination, date)
+                return str(result), True
+            else:
+                return "FlightSearch requires 3 parameters: origin, destination, date", False
+        
+        elif action.startswith('AccommodationSearch[') and action.endswith(']'):
+            params = action[20:-1]
+            city = params.strip()
+            if city:
+                result = self.accommodations.run(city)
+                return str(result), True
+            else:
+                return "AccommodationSearch requires city parameter", False
+        
+        elif action.startswith('RestaurantSearch[') and action.endswith(']'):
+            params = action[17:-1]
+            city = params.strip()
+            if city:
+                result = self.restaurants.run(city)
+                return str(result), True
+            else:
+                return "RestaurantSearch requires city parameter", False
+        
+        elif action.startswith('AttractionSearch[') and action.endswith(']'):
+            params = action[17:-1]
+            city = params.strip()
+            if city:
+                result = self.attractions.run(city)
+                return str(result), True
+            else:
+                return "AttractionSearch requires city parameter", False
+        
+        elif action.startswith('DistanceMatrix[') and action.endswith(']'):
+            params = action[15:-1]
+            parts = [p.strip() for p in params.split(',')]
+            if len(parts) >= 2:
+                origin, destination = parts[0], parts[1]
+                mode = parts[2] if len(parts) > 2 else 'driving'
+                result = self.distance_matrix.run(origin, destination, mode)
+                return str(result), True
+            else:
+                return "DistanceMatrix requires at least 2 parameters: origin, destination", False
+        
+        elif action.startswith('CitySearch[') and action.endswith(']'):
+            params = action[11:-1]
+            state = params.strip()
+            if state:
+                result = self.cities.run(state)
+                return str(result), True
+            else:
+                return "CitySearch requires state parameter", False
+        
+        elif action.startswith('NotebookWrite[') and action.endswith(']'):
+            params = action[14:-1]
+            if params.strip():
+                # 简化：直接存储文本
+                result = self.notebook.write(params, "User note")
+                return str(result), True
+            else:
+                return "NotebookWrite requires content parameter", False
+        
+        # elif action.startswith('Planner[') and action.endswith(']'):  # 注释掉 planner 相关逻辑
+        #     params = action[8:-1]
+        #     result = self.planner.run("", params)
+        #     return str(result), True
+        
+        else:
+            return f"Unknown action format: {action}. Please use proper tool syntax like FlightSearch[origin, destination, date]", False
+
+# 全局环境实例
+travelplanner_env_server = TravelPlannerEnvironment(use_real_tools=True) 
