@@ -9,6 +9,7 @@ import random
 import logging
 from typing import Dict, Any, List, Tuple, Optional
 from datasets import load_dataset
+# dataset: https://huggingface.co/datasets/osunlp/TravelPlanner
 import yaml
 
 # 添加 TravelPlanner 路径以导入工具
@@ -37,7 +38,7 @@ from tools.attractions.apis import Attractions
 from tools.googleDistanceMatrix.apis import GoogleDistanceMatrix
 from tools.cities.apis import Cities
 from tools.notebook.apis import Notebook
-# from tools.planner.apis import Planner  # 注释掉 planner 导入
+from tools.planner.apis import Planner  # 注释掉 planner 导入
 
 # Mock工具实现保持不变以防需要
 class MockFlights:
@@ -99,7 +100,7 @@ class TravelPlannerEnvironment:
                 self.distance_matrix = GoogleDistanceMatrix()
                 self.cities = Cities()
                 self.notebook = Notebook()
-                # self.planner = Planner()  # 注释掉 planner 初始化
+                self.planner = Planner()  # 注释掉 planner 初始化
                 print("Real TravelPlanner tools setup complete.")
             except Exception as e:
                 print(f"Failed to setup real tools, falling back to mock tools: {e}")
@@ -339,10 +340,10 @@ class TravelPlannerEnvironment:
             else:
                 return "NotebookWrite requires content parameter", False
         
-        # elif action.startswith('Planner[') and action.endswith(']'):  # 注释掉 planner 相关逻辑
-        #     params = action[8:-1]
-        #     result = self.planner.run("", params)
-        #     return str(result), True
+        elif action.startswith('Planner[') and action.endswith(']'):  # 注释掉 planner 相关逻辑
+            params = action[8:-1]
+            result = self.planner.run("", params)
+            return str(result), True
         
         else:
             return f"Unknown action format: {action}. Please use proper tool syntax like FlightSearch[origin, destination, date]", False

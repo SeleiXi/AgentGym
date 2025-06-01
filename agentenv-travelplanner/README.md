@@ -63,25 +63,20 @@ TravelPlanner Environment provides the following RESTful API endpoints:
 - **Description**: Reset specified environment instance to initial state
 - **Request Body**:
   ```json
-  {
-    "env_idx": 0,
-    "query_id": 1
-  }
+{
+  "env_idx": 0,
+  "query": "Plan a 3-day trip to New York for 2 people with a budget of $2000",
+  "use_react_agent": false
+}
   ```
 - **Response**:
   ```json
-  {
-    "state": "Environment state description text",
+{
+    "observation": "Environment reset successfully. Ready to plan: Plan a 3-day trip to New York for 2 people with a budget of $2000",
     "info": {
-      "query_id": 1,
-      "query": "Plan a 5-day trip to Paris...",
-      "level": "medium",
-      "days": 5,
-      "step_count": 0,
-      "max_steps": 30,
-      "available_tools": ["FlightSearch", "AccommodationSearch", ...]
+        "agent_type": "direct_tools"
     }
-  }
+}
   ```
 
 ### Environment Interaction Endpoints
@@ -92,26 +87,23 @@ TravelPlanner Environment provides the following RESTful API endpoints:
 - **Description**: Execute an action in the specified environment
 - **Request Body**:
   ```json
-  {
-    "env_idx": 0,
-    "action": "Action: FlightSearch with Action Input: {\"departure_city\": \"New York\", \"destination_city\": \"Paris\", \"date\": \"2024-06-01\"}"
-  }
+{
+  "env_idx": 0,
+  "action": "AccommodationSearch[New York]"
+}
   ```
 - **Response**:
   ```json
-  {
-    "state": "Environment state after execution",
-    "reward": 0.3,
+{
+    "observation": "                    NAME  price        room type  ... maximum occupancy  review rate number      city\n0  Grand Hotel Manhattan    150     Private room  ...                 2                 4.5  New York\n1         Budget Inn NYC     80      Shared room  ...                 1                 3.8  New York\n2     Luxury Plaza Hotel    300  Entire home/apt  ...                 4                 4.8  New York\n3         Midtown Hostel     45      Shared room  ...                 1                 3.2  New York\n4    Central Park Suites    220     Private room  ...                 3                 4.2  New York\n5         Broadway Hotel    180     Private room  ...                 2                 4.1  New York\n6     Times Square Lodge    120      Shared room  ...                 2                 3.9  New York\n7   Manhattan Apartments    250  Entire home/apt  ...                 5                 4.4  New York\n\n[8 rows x 8 columns]",
+    "reward": 1.0,
     "done": false,
     "info": {
-      "step_count": 1,
-      "max_steps": 30,
-      "tool_used": "FlightSearch",
-      "tool_result": "Found 3 flights...",
-      "conversation_history": [...],
-      "notebook_content": [...]
+        "step": 7,
+        "agent_type": "direct_tools",
+        "valid_action": true
     }
-  }
+}
   ```
 
 #### 7. Get Environment Information
