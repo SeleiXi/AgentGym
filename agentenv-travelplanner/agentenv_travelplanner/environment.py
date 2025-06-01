@@ -135,7 +135,10 @@ class TravelPlannerEnvironment:
             'notebook_data': [],
             'use_react_agent': False,
             'done': False,
-            'initialized': False  # 标记环境是否已经通过 reset 初始化
+            'initialized': False,  # 标记环境是否已经通过 reset 初始化
+            'agent_started': False,
+            'agent_result': None,
+            'agent_scratchpad': None
         }
         
         print(f"Created environment with ID: {env_id}")
@@ -162,14 +165,32 @@ class TravelPlannerEnvironment:
             'notebook_data': [],
             'use_react_agent': use_react_agent,
             'done': False,
-            'initialized': True  # 标记环境已经初始化
+            'initialized': True,  # 标记环境已经初始化
+            'agent_started': False,
+            'agent_result': None,
+            'agent_scratchpad': None
         }
         
         if use_react_agent:
             try:
                 # 使用真实的 ReactAgent
                 from agents.tool_agents import ReactAgent
-                self.envs[env_idx]['agent'] = ReactAgent()
+                
+                # 构建正确的 citySet 文件路径
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                travelplanner_dir = os.path.join(current_dir, '..', 'TravelPlanner')
+                city_file_path = os.path.join(travelplanner_dir, 'database', 'background', 'citySet_with_states.txt')
+                city_file_path = os.path.abspath(city_file_path)
+                
+                # 提供必要的参数，参考 tool_agents.py 第648行的用法
+                self.envs[env_idx]['agent'] = ReactAgent(
+                    args=None,  # 可以传递 None
+                    tools=['flights', 'accommodations', 'restaurants', 'attractions', 'googleDistanceMatrix', 'cities', 'notebook', 'planner'],
+                    max_steps=30,
+                    react_llm_name='gpt-3.5-turbo-1106',
+                    planner_llm_name='gpt-3.5-turbo-1106',
+                    city_file_path=city_file_path
+                )
                 return {
                     'observation': f'Environment reset successfully. Ready to plan: {query}',
                     'info': {'agent_type': 'real_react_agent'}
@@ -230,17 +251,32 @@ class TravelPlannerEnvironment:
         # 如果使用 ReactAgent
         if env.get('use_react_agent', False) and 'agent' in env:
             try:
-                observation = env['agent'].step(action)
-                env['history'].append({'action': action, 'observation': observation})
-                return {
-                    'observation': observation,
-                    'reward': 1,
-                    'done': False,
-                    'info': {'step': env['step_count'], 'agent_type': 'react_agent'}
-                }
+                # ReactAgent 有自己的运行逻辑，我们需要检查它是否已经开始运行
+                if not env.get('agent_started', False):
+                    # 第一次调用时启动 ReactAgent
+                    answer, scratchpad, json_log = env['agent'].run(env['query'])
+                    env['agent_started'] = True
+                    env['agent_result'] = answer
+                    env['agent_scratchpad'] = scratchpad
+                    env['done'] = True  # ReactAgent 运行完成后标记为完成
+                    
+                    return {
+                        'observation': f'ReactAgent completed. Final answer: {answer}',
+                        'reward': 1,
+                        'done': True,
+                        'info': {'step': env['step_count'], 'agent_type': 'react_agent', 'scratchpad': scratchpad}
+                    }
+                else:
+                    # 如果 ReactAgent 已经运行完成
+                    return {
+                        'observation': f'ReactAgent already completed. Result: {env.get("agent_result", "No result")}',
+                        'reward': 0,
+                        'done': True,
+                        'info': {'step': env['step_count'], 'agent_type': 'react_agent'}
+                    }
             except Exception as e:
                 return {
-                    'observation': f'Error in ReactAgent step: {str(e)}',
+                    'observation': f'Error in ReactAgent: {str(e)}',
                     'reward': 0,
                     'done': False,
                     'info': {'error': str(e), 'step': env['step_count']}
