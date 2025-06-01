@@ -182,31 +182,6 @@ class TravelPlannerEnvironment:
                 city_file_path = os.path.join(travelplanner_dir, 'database', 'background', 'citySet_with_states.txt')
                 city_file_path = os.path.abspath(city_file_path)
                 
-                # 创建一个临时的只包含城市名的文件，用于 ReactAgent
-                temp_city_file = os.path.join(current_dir, 'temp_citySet.txt')
-                try:
-                    # 读取原始城市文件并提取城市名
-                    with open(city_file_path, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                    
-                    # 提取城市名（第一列），并创建临时文件
-                    city_names = []
-                    for line in lines:
-                        if '\t' in line:
-                            city_name = line.split('\t')[0].strip()
-                            city_names.append(city_name)
-                    
-                    # 写入临时文件
-                    with open(temp_city_file, 'w', encoding='utf-8') as f:
-                        f.write('\n'.join(city_names))
-                    
-                    # 使用临时文件路径
-                    actual_city_file_path = temp_city_file
-                    
-                except Exception as e:
-                    print(f"Failed to create temp city file, using original: {e}")
-                    actual_city_file_path = city_file_path
-                
                 # 提供必要的参数，参考 tool_agents.py 第648行的用法
                 self.envs[env_idx]['agent'] = ReactAgent(
                     args=None,  # 可以传递 None
@@ -214,7 +189,7 @@ class TravelPlannerEnvironment:
                     max_steps=30,
                     react_llm_name='gpt-3.5-turbo-1106',
                     planner_llm_name='gpt-3.5-turbo-1106',
-                    city_file_path=actual_city_file_path
+                    city_file_path=city_file_path
                 )
                 return {
                     'observation': f'Environment reset successfully. Ready to plan: {query}',
